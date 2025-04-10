@@ -10,6 +10,16 @@
 #define BACKLOG          16
 #define MAX_REQUEST_SIZE 1024
 
+int valid_url_path(const char *buffer) {
+    if (strstr(buffer, "GET / HTTP/1.1\r\n") != NULL) {
+        return EXIT_SUCCESS;
+    } else if (strstr(buffer, "GET /index.html HTTP/1.1\r\n") != NULL) {
+        return EXIT_SUCCESS;
+    } else {
+        return EXIT_FAILURE;
+    }
+}
+
 int main() {
     const char *OK_RESPONSE = "HTTP/1.1 200 OK\r\n\r\n";
     const char *NOT_FOUND   = "HTTP/1.1 404 Not Found\r\n\r\n";
@@ -67,17 +77,15 @@ int main() {
         } else {
             perror("recv failed!");
         }
-        printf("bytes_read: %ld\n", bytes_read);
-        printf("request_buffer:\n---\n%s\n---\n", request_buffer);
 
         // 7. Send response to the client
-        if (strstr(request_buffer, "GET /index.html HTTP/1.1\r\n") != NULL) {
-            if ((send(client_fd, OK_RESPONSE, strlen(OK_RESPONSE), 0)) == -1) {
+        if (valid_url_path(request_buffer) != 0) {
+            if ((send(client_fd, NOT_FOUND, strlen(NOT_FOUND), 0)) == -1) {
                 perror("Sending response failed!");
                 exit(EXIT_FAILURE);
             }
         } else {
-            if ((send(client_fd, NOT_FOUND, strlen(NOT_FOUND), 0)) == -1) {
+            if ((send(client_fd, OK_RESPONSE, strlen(OK_RESPONSE), 0)) == -1) {
                 perror("Sending response failed!");
                 exit(EXIT_FAILURE);
             }
