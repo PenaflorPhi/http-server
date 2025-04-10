@@ -10,19 +10,10 @@
 #define BACKLOG          16
 #define MAX_REQUEST_SIZE 1024
 
-int valid_url_path(const char *buffer) {
-    if (strstr(buffer, "GET / HTTP/1.1\r\n") != NULL) {
-        return EXIT_SUCCESS;
-    } else if (strstr(buffer, "GET /index.html HTTP/1.1\r\n") != NULL) {
-        return EXIT_SUCCESS;
-    } else {
-        return EXIT_FAILURE;
-    }
-}
-
 int main() {
     const char *OK_RESPONSE = "HTTP/1.1 200 OK\r\n\r\n";
     const char *NOT_FOUND   = "HTTP/1.1 404 Not Found\r\n\r\n";
+    const char *response;
 
     int TRUE = 1;
 
@@ -70,7 +61,7 @@ int main() {
             exit(EXIT_FAILURE);
         }
 
-        // 6. Read and print client's request
+        // 6. Read client's request
         bytes_read = recv(client_fd, request_buffer, MAX_REQUEST_SIZE, 0);
         if (bytes_read > 0) {
             request_buffer[bytes_read] = '\0';
@@ -78,17 +69,21 @@ int main() {
             perror("recv failed!");
         }
 
-        // 7. Send response to the client
-        if (valid_url_path(request_buffer) != 0) {
-            if ((send(client_fd, NOT_FOUND, strlen(NOT_FOUND), 0)) == -1) {
-                perror("Sending response failed!");
-                exit(EXIT_FAILURE);
-            }
+        // 7. Get path from clients request and validate
+        char *path = strtok(request_buffer, " ");
+        path       = strtok(NULL, " ");
+        printf("path: %s\n", path);
+
+        if (strcmp(path, "/") == 0 || strcmp(path, "/index.html") == 0) {
+            response = OK_RESPONSE;
         } else {
-            if ((send(client_fd, OK_RESPONSE, strlen(OK_RESPONSE), 0)) == -1) {
-                perror("Sending response failed!");
-                exit(EXIT_FAILURE);
-            }
+            response = NOT_FOUND;
+        }
+
+        // 8. Send response to client
+        if ((send(client_fd, response, strlen(response), 0)) == -1) {
+            perror("Sending response failed!");
+            exit(EXIT_FAILURE);
         }
 
         shutdown(client_fd, SHUT_WR);
