@@ -1,6 +1,6 @@
 # Compiler and flags
 CC      = clang
-CFLAGS  = -std=c23 -Weverything -Wpedantic -O0 -Werror
+CFLAGS  = -std=c23 -Wall -Wextra -Wpedantic -O0 -Werror
 
 # Directories and target
 SRC_DIR    = src
