@@ -21,7 +21,7 @@ int format_response(char *response_to_send, int buff_size, const char *response,
     return written_bytes;
 }
 
-const char *format_echo(const char *s) {
+char *format_echo(char *s) {
     if ((s + strlen("/echo"))[0]) {
         return s + strlen("/echo") + 1;
     }
