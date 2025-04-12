@@ -7,12 +7,20 @@ SRC_DIR    = src
 BUILD_DIR  = build
 TARGET     = $(BUILD_DIR)/server
 
-# Default target
+# Source and object files
+SRC_FILES  = $(SRC_DIR)/server.c $(SRC_DIR)/response.c
+OBJ_FILES  = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
+
+# Default target: build the target executable
 all: $(TARGET)
 
-# Build the target executable from server.c
-$(TARGET): $(SRC_DIR)/server.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRC_DIR)/server.c
+# Link object files into the target executable
+$(TARGET): $(OBJ_FILES) | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJ_FILES)
+
+# Compile each C source file into an object file in the build directory
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # Create the build directory if it doesn't exist
 $(BUILD_DIR):
@@ -22,5 +30,4 @@ $(BUILD_DIR):
 clean:
 	rm -rf $(BUILD_DIR)
 
-# Phony targets
 .PHONY: all clean
