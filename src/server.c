@@ -6,6 +6,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "response.h"
+
 #define PORT            8080
 #define BACKLOG         16
 #define MAX_BUFFER_SIZE 1024
@@ -13,12 +15,11 @@
 static int TRUE = 1;
 // static int FALSE = 0;
 
-static const char *OK_RESPONSE = "HTTP/1.1 200 OK\r\n"
-                                 "Content-Type: text/plain\r\n"
-                                 "Content-Length: %d\r\n"
-                                 "\r\n"
-                                 "%s";
-static const char *NOT_FOUND   = "HTTP/1.1 404 Not Found\r\n\r\n";
+static const char *RESPONSE = "HTTP/1.1 %s\r\n"
+                              "Content-Type: text/plain\r\n"
+                              "Content-Length: %zu\r\n"
+                              "\r\n"
+                              "%s";
 
 int main() {
     // Client server information
@@ -59,13 +60,12 @@ int main() {
         // Buffer information
         ssize_t bytes_read;
         char   *request_buffer = calloc(MAX_BUFFER_SIZE, sizeof(char));
-        char   *requested_path = NULL;
+        char   *request_path   = NULL;
 
         // Response information
-        int          written_bytes   = 0;
-        unsigned int response_status = 0;
-        char        *response        = calloc(MAX_BUFFER_SIZE, sizeof(char));
-        char        *message         = NULL;
+        char *response        = calloc(MAX_BUFFER_SIZE, sizeof(char));
+        char *response_status = NULL;
+        char *message         = NULL;
 
         // 5. Accept incoming connection
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_size);
@@ -83,34 +83,21 @@ int main() {
         }
 
         // 7. Get path from clients request and validate
-        requested_path = strtok(request_buffer, " ");
-        requested_path = strtok(NULL, " ");
-        printf("requested_path: %s\n", requested_path);
+        request_path = strtok(request_buffer, " ");
+        request_path = strtok(NULL, " ");
 
-        if (strcmp(requested_path, "/") == 0 || strcmp(requested_path, "/index.html") == 0) {
-            response_status = 200;
+        if (strcmp(request_path, "/") == 0 || strcmp(request_path, "/index.html") == 0) {
+            response_status = "200 OK";
             message         = "";
-        } else if ((strstr(requested_path, "/echo/")) != NULL) {
-            response_status = 200;
-            message         = requested_path + strlen("/echo/");
-            printf("message: %s\n", message);
+        } else if ((strstr(request_path, "/echo")) != NULL) {
+            response_status = "200 OK";
+            message         = format_echo(request_path);
         } else {
-            response_status = 404;
+            response_status = "404 Not Found";
+            message         = "";
         }
 
-        if (response_status == 200) {
-            written_bytes =
-                snprintf(response, MAX_BUFFER_SIZE, OK_RESPONSE, strlen(message), message);
-            printf("response: %s\n", response);
-
-            if (written_bytes < 0 || written_bytes > MAX_BUFFER_SIZE) {
-                perror("Error formating the response or buffer is too small.\n");
-                free(response);
-                exit(EXIT_FAILURE);
-            }
-        } else if (response_status == 404) {
-            response = (char *)NOT_FOUND;
-        }
+        format_response(response, MAX_BUFFER_SIZE, RESPONSE, response_status, message);
 
         // 9. Send response to client
         if ((send(client_fd, response, strlen(response), 0)) == -1) {
