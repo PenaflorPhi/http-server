@@ -1,9 +1,8 @@
-#ifndef RESPONSE_H
-#define RESPONSE_H
+#ifndef PROCESS_H
+#define PROCESS_H
 
-int format_response(char *response_to_send, unsigned long buff_size, const char *response,
-                    const char *response_status, const char *message);
+#include "server.h"
 
-char *format_echo(const char *str);
+Response process_request(Request *req, int buffer_size);
 
-#endif /* RESPONSE_H */
+#endif // !PROCESS_H
