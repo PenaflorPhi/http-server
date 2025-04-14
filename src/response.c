@@ -22,7 +22,7 @@ void format_response(Response *res, int buffer_size) {
     int written_bytes;
 
     // body + the '\r\n' at the end of the status_response;
-    int body_length = strlen(res->body) ? strlen(res->body) + 2 : 0;
+    int body_length = strlen(res->body) ? strlen(res->body) : 0;
 
     if (strcmp(res->status, "200 OK") == 0) {
         written_bytes = snprintf(res->response,
@@ -53,6 +53,8 @@ void format_response(Response *res, int buffer_size) {
     }
 }
 
+void get_user_agent(Request *req) { printf("%s\n", req->path); }
+
 Response process_request(Request *req, int buffer_size) {
     Response res;
     res.response = calloc(buffer_size * sizeof(char), sizeof(char));
@@ -68,6 +70,10 @@ Response process_request(Request *req, int buffer_size) {
     } else if ((strncmp(req->path, "/echo", strlen("/echo"))) == 0) {
         res.status = "200 OK";
         res.body   = format_echo(req->path);
+    } else if (strcmp(req->path, "/user-agent") == 0) {
+        res.status = "200 OK";
+        res.body   = req->user_agent;
+        get_user_agent(req);
     } else {
         res.status = "404 Not Found";
         res.body   = "";

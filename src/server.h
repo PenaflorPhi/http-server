@@ -6,14 +6,14 @@
 #include <sys/socket.h>
 
 typedef struct {
-    int                file_descriptor;
-    struct sockaddr_in address;
+    int          file_descriptor;
+    unsigned int port;
+    unsigned int backlog;
 } Server;
 
 typedef struct {
-    int                file_descriptor;
-    unsigned int       address_size;
-    struct sockaddr_in address;
+    int   file_descriptor;
+    char *request;
 } Client;
 
 typedef struct {
@@ -25,6 +25,7 @@ typedef struct {
 typedef struct {
     char *request;
     char *path;
+    char *user_agent;
 } Request;
 
 Server create_server(int port, int backlog);
