@@ -1,64 +1,64 @@
-#include <netinet/in.h>
-#include <netinet/ip.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include "request.h"
 #include "response.h"
 #include "server.h"
 
-#define PORT            8080
-#define BACKLOG         16
-#define MAX_BUFFER_SIZE 1024
-
-static int TRUE = 1;
+#define PORT            8080 // Port number for the server to listen on.
+#define BACKLOG         16   // Maximum number of pending connections in the queue.
+#define MAX_BUFFER_SIZE 1024 // Maximum size of the buffer for request/response handling.
 
 int main() {
+    // Initialize the server and a temporary client structure.
     Server server;
-    // Client client;
+    Client client;
 
-    // Client server information
-    int                client_fd;
-    struct sockaddr_in client_addr;
-    unsigned int       client_addr_size = sizeof(client_addr);
-
+    /*
+     * Create the server with the following steps:
+     *  1. Create a socket.
+     *  2. Set socket options (e.g., enabling reuse).
+     *  3. Define the server address struct.
+     *  4. Bind the socket to the defined address.
+     *  5. Start listening for incoming connections (with a maximum queue of BACKLOG).
+     */
     server = create_server(PORT, BACKLOG);
 
-    while (TRUE) {
-        Request  req;
-        Response res;
+    while (1) {
+        Request  request;  // Structure to store the client's request.
+        Response response; // Structure to store the server's response.
 
-        client_fd =
-            accept(server.file_descriptor, (struct sockaddr *)&client_addr, &client_addr_size);
-        if (client_fd == -1) {
-            perror("Accepting incoming connection failed");
-            exit(EXIT_FAILURE);
-        }
-        printf("client_fd: %d\n", client_fd);
+        /* Accept a new client connection. */
+        client = accept_client(&server);
 
-        // 2. Parse request from the client.
-        req = parse_request(client_fd, MAX_BUFFER_SIZE);
+        /*
+         * Read the client's HTTP request into a buffer with a maximum size of MAX_BUFFER_SIZE,
+         * and parse it to determine the requested resource.
+         */
+        request = parse_request(client.file_descriptor, MAX_BUFFER_SIZE);
 
-        // 3. Process request, create response.
-        res = process_request(&req, MAX_BUFFER_SIZE);
+        /*
+         * Process the parsed request to create the appropriate response.
+         */
+        response = process_request(&request, MAX_BUFFER_SIZE);
 
-        // 9. Send response to client
+        /*
+         * Send the generated response back to the client.
+         */
+        printf("Response:\n");
+        printf("%s", response.response);
+        send_response(&client, &response);
 
-        printf("resp.response:\n%s\n", res.response);
-        if ((send(client_fd, res.response, strlen(res.response), 0)) == -1) {
-            perror("Sending response failed!");
-            exit(EXIT_FAILURE);
-        }
+        // Free memory.
+        free(request.request);
+        free(response.response);
 
-        free(req.request);
-        free(res.response);
-
-        shutdown(client_fd, SHUT_WR);
-        close(client_fd);
+        // Properly shutdown the connection and then close the file descriptor.
+        shutdown(client.file_descriptor, SHUT_WR);
+        close(client.file_descriptor);
     }
+
+    // Close the server's file descriptor before exiting.
     close(server.file_descriptor);
 
     return EXIT_SUCCESS;

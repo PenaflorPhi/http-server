@@ -49,18 +49,18 @@ static void listen_on_socket(Server *serv, int backlog) {
 }
 
 Server create_server(int port, int backlog) {
-    Server serv;
+    Server server;
 
     struct sockaddr_in address;
 
-    create_socket(&serv);
-    set_socket_options(&serv);
+    create_socket(&server);
+    set_socket_options(&server);
     set_server_address(&address, port);
-    bind_socket(&serv, address);
-    serv.address = address;
+    bind_socket(&server, address);
+    server.address = address;
 
-    listen_on_socket(&serv, backlog);
-    return serv;
+    listen_on_socket(&server, backlog);
+    return server;
 }
 
 /*========================================================================
@@ -68,3 +68,18 @@ Server create_server(int port, int backlog) {
  * Client
  *
 ========================================================================== */
+
+Client accept_client(Server *server) {
+    Client client;
+    client.address_size = sizeof(client.address);
+
+    client.file_descriptor =
+        accept(server->file_descriptor, (struct sockaddr *)&client.address, &client.address_size);
+
+    if (client.file_descriptor == -1) {
+        perror("Accepting incoming connection failed");
+        exit(EXIT_FAILURE);
+    }
+
+    return client;
+}

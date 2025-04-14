@@ -28,6 +28,6 @@ typedef struct {
 } Request;
 
 Server create_server(int port, int backlog);
-Client create_client(Server *serv);
+Client accept_client(Server *server);
 
 #endif // !SERVER_H

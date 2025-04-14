@@ -77,3 +77,11 @@ Response process_request(Request *req, int buffer_size) {
 
     return res;
 }
+
+void send_response(Client *client, Response *response) {
+    if ((send(client->file_descriptor, response->response, strlen(response->response), 0)) == -1) {
+        perror("Sending response failed!");
+        free(response->response);
+        exit(EXIT_FAILURE);
+    }
+}

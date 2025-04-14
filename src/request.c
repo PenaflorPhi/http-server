@@ -24,6 +24,7 @@ Request parse_request(int client_fd, ssize_t buffer_size) {
     if (bytes_read > 0) {
         req.request[bytes_read] = '\0';
     } else {
+        free(req.request);
         perror("recv failed!");
     }
 
