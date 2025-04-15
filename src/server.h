@@ -12,9 +12,20 @@ typedef struct {
 } Server;
 
 typedef struct {
-    int   file_descriptor;
-    char *request;
+    int          file_descriptor;
+    unsigned int buffer_size;
+    char        *request;
 } Client;
+
+typedef struct {
+    char *method;
+    char *url;
+    char *protocol;
+    char *host;
+    char *user_agent;
+    char *connection;
+    char *accept;
+} Request;
 
 typedef struct {
     char *status;
@@ -22,13 +33,7 @@ typedef struct {
     char *response;
 } Response;
 
-typedef struct {
-    char *request;
-    char *path;
-    char *user_agent;
-} Request;
-
 Server create_server(int port, int backlog);
-Client accept_client(Server *server);
+Client accept_client(Server *server, unsigned int buffer_size);
 
 #endif // !SERVER_H

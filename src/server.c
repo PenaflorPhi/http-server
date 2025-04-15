@@ -26,31 +26,36 @@ static void set_socket_options(Server *server) {
 
 static void bind_socket(Server *serv, struct sockaddr_in *address) {
     if (bind(serv->file_descriptor, (struct sockaddr *)address, sizeof(*address)) != 0) {
-        perror("Binding failed!");
+        perror("binding socket failed");
         exit(EXIT_FAILURE);
     }
 }
 
 static void listen_on_socket(Server *server) {
     if (listen(server->file_descriptor, server->backlog) != 0) {
-        perror("Listening failed!");
+        perror("listening failed");
         exit(EXIT_FAILURE);
     }
 }
 
 static void create_socket(Server *server, struct sockaddr_in *address) {
     if ((server->file_descriptor = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        perror("Socket creation faild!");
+        perror("socket creation failed");
         exit(EXIT_FAILURE);
     }
 
     set_socket_options(server);
+
     bind_socket(server, address);
+    printf("Binding to port %d successful.\n", server->port);
+
     listen_on_socket(server);
+    printf("Listening with backlog %d.\n", server->backlog);
 }
 
 static struct sockaddr_in config_network_addr_structure(Server *server) {
     struct sockaddr_in address;
+    memset(&address, 0, sizeof(address));
     address.sin_port        = htons(server->port);
     address.sin_family      = AF_INET;
     address.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -65,17 +70,22 @@ Server create_server(int port, int backlog) {
 
     struct sockaddr_in address = config_network_addr_structure(&server);
     create_socket(&server, &address);
+    printf("Socket created successfully.\n");
 
     return server;
 }
+
 /*========================================================================
  *
  * Client
  *
 ========================================================================== */
 
-Client accept_client(Server *server) {
-    Client             client;
+Client accept_client(Server *server, unsigned int buffer_size) {
+    Client client;
+    client.buffer_size = buffer_size;
+    client.request     = calloc(client.buffer_size, sizeof(char));
+
     struct sockaddr_in address;
     memset(&address, 0, sizeof(address));
 
