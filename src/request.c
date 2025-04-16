@@ -1,97 +1,156 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 
 #include "server.h"
+#include "utils.h"
 
-// Extracts a specific header value from the request by looking for "\r\n<Header>: "
-// and returning a dynamically allocated string with the header's value.
-static char *get_header(const char *request, const char *header, int buffer_size) {
-    char *header_prefix = "\r\n%s: ";
+#define MAX_METHOD_SIZE   8
+#define MAX_PROTOCOL_SIZE 16
+#define MAX_URL_SIZE      1024
 
-    // Allocate a buffer to hold the header key. This buffer will be used
-    // to search within the request string.
-    char *request_header = calloc(buffer_size, sizeof(char));
-    char *header_start, *header_end;
+#define MAX_HOST_SIZE       256
+#define MAX_USER_AGENT_SIZE 512
+#define MAX_CONNECTION_SIZE 128
+#define MAX_ACCEPT_SIZE     256
 
-    // Write the header key into request_header using the provided header string.
-    int bytes = snprintf(request_header, buffer_size, header_prefix, header);
-    if (bytes < 0) {
-        perror("Error getting header\n");
-        exit(EXIT_FAILURE);
-    } else if (bytes >= buffer_size) {
-        perror("Request larger than buffer size.\n");
-        exit(EXIT_FAILURE);
-    }
+// ------------------------------------------------------------------
+// ---------------- Request Struct ----------------------------------
+// ------------------------------------------------------------------
 
-    // Search the request for the header key
-    if (!(header_start = strstr(request, request_header))) {
-        free(request_header);
-        return NULL;
-    }
-    // Advance the pointer past the header key to get to the header value.
-    header_start += strlen(request_header);
+static void initialize_request(Request *request) {
+    /* Request start line*/
+    request->method   = safe_calloc(MAX_METHOD_SIZE, sizeof(char));
+    request->protocol = safe_calloc(MAX_PROTOCOL_SIZE, sizeof(char));
+    request->url      = safe_calloc(MAX_URL_SIZE, sizeof(char));
 
-    // Look for the end of the header value.
-    if (!(header_end = strstr(header_start, "\r\n"))) {
-        header_end = request_header + strlen(request_header);
-    }
-
-    memcpy(request_header, header_start, header_end - header_start);
-    request_header[header_end - header_start] = '\0';
-
-    return request_header;
+    /* Request header */
+    request->host       = safe_calloc(MAX_HOST_SIZE, sizeof(char));
+    request->user_agent = safe_calloc(MAX_USER_AGENT_SIZE, sizeof(char));
+    request->connection = safe_calloc(MAX_CONNECTION_SIZE, sizeof(char));
+    request->accept     = safe_calloc(MAX_ACCEPT_SIZE, sizeof(char));
 }
 
-// Extracts the request path from the request buffer by finding the method and the path tokens.
-static char *get_path(const char *request_buffer) {
-    const char *first_space, *second_space;
-    if (!(first_space = strchr(request_buffer, ' '))) {
-        if (!first_space) {
-            return NULL;
+static void free_request(Request *request) {
+    free(request->method);
+    free(request->protocol);
+    free(request->url);
+    free(request->host);
+    free(request->user_agent);
+    free(request->connection);
+    free(request->accept);
+}
+
+// ------------------------------------------------------------------
+// ---------------- Request Parsing ---------------------------------
+// ------------------------------------------------------------------
+
+static void parse_header(char *client_request, Request *request) {
+    char *line = strtok(client_request, "\r\n");
+
+    // Skip the request line.
+    if (line != NULL)
+        line = strtok(NULL, "\r\n");
+
+    for (; line != NULL && line[0] != '\0'; line = strtok(NULL, "\r\n")) {
+        char *header_value = strchr(line, ':');
+        if (!header_value)
+            continue;
+
+        *header_value  = '\0'; // Temporarily end header name
+        header_value  += 2;    // Skip ': ' to the value
+
+        if (strcmp(line, "User-Agent") == 0) {
+            strncpy(request->user_agent, header_value, MAX_USER_AGENT_SIZE - 1);
+            request->user_agent[MAX_USER_AGENT_SIZE - 1] = '\0';
+        } else if (strcmp(line, "Host") == 0) {
+            strncpy(request->host, header_value, MAX_HOST_SIZE - 1);
+            request->host[MAX_HOST_SIZE - 1] = '\0';
+        } else if (strcmp(line, "Accept") == 0) {
+            strncpy(request->accept, header_value, MAX_ACCEPT_SIZE - 1);
+            request->accept[MAX_ACCEPT_SIZE - 1] = '\0';
+        } else if (strcmp(line, "Connection") == 0) {
+            strncpy(request->connection, header_value, MAX_CONNECTION_SIZE - 1);
+            request->connection[MAX_CONNECTION_SIZE - 1] = '\0';
         }
     }
-    first_space += 1;
 
-    if (!(second_space = strchr(first_space, ' '))) {
-        return NULL;
-    }
+    // printf("`Connection`: %s\n", request->connection);
+    // printf("`User-Agent`: %s\n", request->user_agent);
+    // printf("`Accept`: %s\n", request->accept);
+    // printf("`Connection`: %s\n", request->connection);
 
-    size_t path_len = second_space - first_space;
-    // Allocate memory for the path substring plus a null terminator.
-    char *path = malloc(path_len);
-    if (!path) {
-        perror("malloc failed!");
-        return NULL;
-    }
+    string_realloc(&request->host);
+    string_realloc(&request->user_agent);
+    string_realloc(&request->accept);
+    string_realloc(&request->connection);
 
-    memcpy(path, first_space, path_len);
-    path[path_len] = '\0';
-    return path;
+    // printf("`Host`: %s\n", request->host);
+    // printf("`User-Agent`: %s\n", request->user_agent);
+    // printf("`Accept`: %s\n", request->accept);
+    // printf("`Connection`: %s\n", request->connection);
 }
 
-// Parses an incoming request from a client socket by reading the request buffer
-// and extracting relevant parts.
-Request parse_request(int client_fd, ssize_t buffer_size) {
-    Request req;
-    // Allocate memory for storing the full HTTP request.
-    req.request = calloc(buffer_size, sizeof(char));
+static Request parse_request_line(char *client_request) {
+    printf("parsing request\n");
+    Request request;
+    initialize_request(&request);
 
-    // Receive data from the client socket.
-    // recv returns the number of bytes read from the socket.
-    ssize_t bytes_read = recv(client_fd, req.request, buffer_size, 0);
-    if (bytes_read > 0) {
-        // Null-terminate the received data to create a proper C string.
-        req.request[bytes_read] = '\0';
+    int response_size =
+        sscanf(client_request, "%7s %1023s %15s", request.method, request.url, request.protocol);
+    if (response_size == 3) {
+        // printf("method: %s\n", request.method);
+        // printf("url: %s\n", request.url);
+        // printf("protocol: %s\n", request.protocol);
+
+        string_realloc(&request.method);
+        string_realloc(&request.url);
+        string_realloc(&request.protocol);
+        //
+        // // printf("method: %s\n", request.method);
+        // // printf("url: %s\n", request.url);
+        // // printf("protocol: %s\n", request.protocol);
     } else {
-        // In case of an error, free the allocated memory and print an error.
-        free(req.request);
-        perror("recv failed!");
+        free_request(&request);
+        perror("Malformed request, could not find one of method, url, protocol");
     }
 
-    req.path       = get_path(req.request);
-    req.user_agent = get_header(req.request, "User-Agent", buffer_size);
+    return request;
+}
 
-    return req;
+// ------------------------------------------------------------------
+// ---------------- Receive Request ---------------------------------
+// ------------------------------------------------------------------
+static void receive_request(Client *client) {
+    ssize_t bytes = recv(client->file_descriptor, client->request, client->buffer_size, 0);
+    if (bytes > 0) {
+        client->request[bytes] = '\0';
+    } else {
+        free(client->request);
+        perror("failed while trying to receive request.");
+    }
+}
+
+// ------------------------------------------------------------------
+// ---------------- Request Handler ---------------------------------
+// ------------------------------------------------------------------
+void request_handler(Client *client) {
+    receive_request(client);
+    char *client_request = strdup(client->request);
+    // printf("request:\\n\n%s", client_request);
+    // printf("client_request:\\n\n%s", client_request);
+
+    Request request = parse_request_line(client_request);
+    parse_header(client_request, &request);
+
+    puts("----------------------------------");
+    printf("`method`: %s\n", request.method);
+    printf("`url`: %s\n", request.url);
+    printf("`protocol`: %s\n", request.protocol);
+
+    printf("`Host`: %s\n", request.host);
+    printf("`User-Agent`: %s\n", request.user_agent);
+    printf("`Accept`: %s\n", request.accept);
+    printf("`Connection`: %s\n", request.connection);
+    puts("----------------------------------");
 }
