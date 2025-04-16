@@ -11,6 +11,15 @@ void *safe_calloc(unsigned int nmemb, unsigned int size) {
     return buffer;
 }
 
+void *safe_malloc(unsigned int size) {
+    void *buffer = malloc(size);
+    if (buffer == NULL) {
+        perror("Error while callocating memory");
+        return NULL;
+    }
+    return buffer;
+}
+
 void string_realloc(char **str) {
     size_t len  = strlen(*str);
     char  *temp = realloc(*str, len + 1);
