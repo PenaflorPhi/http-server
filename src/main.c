@@ -2,10 +2,12 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include "request.h"
+#include "response.h"
 #include "server.h"
 #include "utils.h"
 
@@ -19,7 +21,8 @@
 void *thread_request_handler(void *arg) {
     Client *client = (Client *)arg;
 
-    request_handler(client);
+    Request request = request_handler(client);
+    send_response(&request, client);
 
     free(client->request);
     shutdown(client->file_descriptor, SHUT_WR);

@@ -12,9 +12,9 @@ typedef struct {
 } Server;
 
 typedef struct {
-    int          file_descriptor;
-    unsigned int buffer_size;
-    char        *request;
+    int           file_descriptor;
+    unsigned long buffer_size;
+    char         *request;
 } Client;
 
 typedef struct {
@@ -28,9 +28,9 @@ typedef struct {
 } Request;
 
 typedef struct {
-    char *status;
-    char *body;
-    char *response;
+    char         *status;
+    char         *body;
+    unsigned long size;
 } Response;
 
 Server create_server(int port, int backlog);

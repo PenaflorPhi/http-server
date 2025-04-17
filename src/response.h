@@ -3,7 +3,6 @@
 
 #include "server.h"
 
-Response process_request(Request *req, int buffer_size);
-void     send_response(Client *client, Response *response);
+void send_response(Request *request, Client *client);
 
 #endif // !PROCESS_H

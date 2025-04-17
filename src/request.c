@@ -134,7 +134,7 @@ static void receive_request(Client *client) {
 // ------------------------------------------------------------------
 // ---------------- Request Handler ---------------------------------
 // ------------------------------------------------------------------
-void request_handler(Client *client) {
+Request request_handler(Client *client) {
     receive_request(client);
     char *client_request = strdup(client->request);
     // printf("request:\\n\n%s", client_request);
@@ -143,7 +143,7 @@ void request_handler(Client *client) {
     Request request = parse_request_line(client_request);
     parse_header(client_request, &request);
 
-    puts("----------------------------------");
+    puts("--- request_handler ----------------");
     printf("`method`: %s\n", request.method);
     printf("`url`: %s\n", request.url);
     printf("`protocol`: %s\n", request.protocol);
@@ -152,5 +152,7 @@ void request_handler(Client *client) {
     printf("`User-Agent`: %s\n", request.user_agent);
     printf("`Accept`: %s\n", request.accept);
     printf("`Connection`: %s\n", request.connection);
-    puts("----------------------------------");
+    puts("------------------------------------");
+
+    return request;
 }

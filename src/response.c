@@ -3,91 +3,74 @@
 #include <string.h>
 
 #include "server.h"
+#include "utils.h"
 
-static const char *default_status_response = "HTTP/1.1 %s\r\n"
-                                             "content-type: text/plain\r\n"
-                                             "content-length: %zu\r\n"
-                                             "\r\n"
-                                             "%s"
-                                             "\r\n";
+static const char *default_response = "HTTP/1.1 %s\r\n"
+                                      "content-type: text/plain\r\n"
+                                      "content-length: %zu\r\n"
+                                      "\r\n"
+                                      "%s";
 
-char *format_echo(char *s) {
-    if ((s + strlen("/echo"))[0] != '\0') {
-        return s + strlen("/echo") + 1;
+static Response process_request(Request *request) {
+    Response response;
+    if (strcmp(request->url, "/") == 0) {
+        response.status = "200 OK";
+        response.body   = "";
+    } else if (strcmp(request->url, "/index.html") == 0) {
+        response.status = "200 OK";
+        response.body   = "";
+    } else if (strncmp(request->url, "/echo", 5) == 0) {
+        response.status          = "200 OK";
+        const char *echo_content = request->url + 6;
+
+        size_t length = strlen(echo_content) + 1;
+        response.body = (char *)malloc(length);
+        memcpy(response.body, echo_content, length);
+    } else if (strcmp(request->url, "/user-agent") == 0) {
+        response.status = "200 OK";
+        response.body   = request->user_agent;
+    } else {
+        response.status = "404 Not Found";
+        response.body   = "";
     }
-    return s + strlen("/echo");
+
+    response.size = strlen(response.body);
+
+    return response;
 }
 
-void format_response(Response *res, int buffer_size) {
-    int written_bytes;
-
-    // body + the '\r\n' at the end of the status_response;
-    int body_length = strlen(res->body) ? strlen(res->body) : 0;
-
-    if (strcmp(res->status, "200 OK") == 0) {
-        written_bytes = snprintf(res->response,
+static char *format_response(Response *response, int buffer_size) {
+    char *formatted_response = safe_calloc(buffer_size, sizeof(char));
+    int   written_bytes      = snprintf(formatted_response,
                                  buffer_size,
-                                 default_status_response,
-                                 res->status,
-                                 body_length,
-                                 res->body);
-    } else if (strcmp(res->status, "404 Not Found") == 0) {
-        written_bytes = snprintf(res->response,
-                                 buffer_size,
-                                 default_status_response,
-                                 res->status,
-                                 body_length,
-                                 res->body);
-
-    } else {
-        perror("Status body not found! Something went wrong.\n");
-        exit(EXIT_FAILURE);
-    }
+                                 default_response,
+                                 response->status,
+                                 response->size,
+                                 response->body);
 
     if (written_bytes < 0) {
         perror("Error formating the response.\n");
-        exit(EXIT_FAILURE);
+        free(formatted_response);
+        return NULL;
     } else if (written_bytes >= buffer_size) {
         perror("Response larger than buffer size.\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void get_user_agent(Request *req) { printf("%s\n", req->path); }
-
-Response process_request(Request *req, int buffer_size) {
-    Response res;
-    res.response = calloc(buffer_size * sizeof(char), sizeof(char));
-    res.status   = "";
-    res.body     = "";
-
-    if (strcmp(req->path, "/") == 0 || strcmp(req->path, "") == 0) {
-        res.status = "200 OK";
-        res.body   = "";
-    } else if (strcmp(req->path, "/index.html") == 0) {
-        res.status = "200 OK";
-        res.body   = "";
-    } else if ((strncmp(req->path, "/echo", strlen("/echo"))) == 0) {
-        res.status = "200 OK";
-        res.body   = format_echo(req->path);
-    } else if (strcmp(req->path, "/user-agent") == 0) {
-        res.status = "200 OK";
-        res.body   = req->user_agent;
-        get_user_agent(req);
-    } else {
-        res.status = "404 Not Found";
-        res.body   = "";
+        free(formatted_response);
+        return NULL;
     }
 
-    format_response(&res, buffer_size);
-
-    return res;
+    return formatted_response;
 }
 
-void send_response(Client *client, Response *response) {
-    if ((send(client->file_descriptor, response->response, strlen(response->response), 0)) == -1) {
+void send_response(Request *request, Client *client) {
+    Response response = process_request(request);
+    char    *message  = format_response(&response, client->buffer_size);
+
+    puts("--- send_response ----------------");
+    printf("%s\n", message);
+    puts("------------------------------------");
+
+    if ((send(client->file_descriptor, message, strlen(message), 0)) == -1) {
         perror("Sending response failed!");
-        free(response->response);
-        exit(EXIT_FAILURE);
+        return;
     }
 }
