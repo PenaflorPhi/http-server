@@ -29,6 +29,7 @@ typedef struct {
 
 typedef struct {
     char         *status;
+    char         *content_type;
     char         *body;
     unsigned long size;
 } Response;

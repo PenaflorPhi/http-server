@@ -2,11 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "read_file.h"
 #include "server.h"
 #include "utils.h"
 
 static const char *default_response = "HTTP/1.1 %s\r\n"
-                                      "content-type: text/plain\r\n"
+                                      "content-type: %s\r\n"
                                       "content-length: %zu\r\n"
                                       "\r\n"
                                       "%s";
@@ -14,11 +15,17 @@ static const char *default_response = "HTTP/1.1 %s\r\n"
 static Response process_request(Request *request) {
     Response response;
     if (strcmp(request->url, "/") == 0) {
-        response.status = "200 OK";
-        response.body   = "";
+        response.status       = "200 OK";
+        response.body         = "";
+        response.content_type = "text/plain";
     } else if (strcmp(request->url, "/index.html") == 0) {
-        response.status = "200 OK";
-        response.body   = "";
+        response.status       = "200 OK";
+        response.body         = "";
+        response.content_type = "text/plain";
+    } else if (strcmp(request->url, "/user-agent") == 0) {
+        response.status       = "200 OK";
+        response.body         = request->user_agent;
+        response.content_type = "text/plain";
     } else if (strncmp(request->url, "/echo", 5) == 0) {
         response.status          = "200 OK";
         const char *echo_content = request->url + 6;
@@ -26,12 +33,22 @@ static Response process_request(Request *request) {
         size_t length = strlen(echo_content) + 1;
         response.body = (char *)malloc(length);
         memcpy(response.body, echo_content, length);
-    } else if (strcmp(request->url, "/user-agent") == 0) {
-        response.status = "200 OK";
-        response.body   = request->user_agent;
+
+        response.content_type = "text/plain";
+    } else if (strncmp(request->url, "/files", 5) == 0) {
+        response.status       = "200 OK";
+        response.content_type = "application/octet-stream";
+
+        const char *file_path = request->url + 1;
+
+        response.body = read_file(file_path);
+        if (response.body == NULL) {
+            printf("File not found!\n");
+            response.body = "";
+        }
     } else {
         response.status = "404 Not Found";
-        response.body   = "";
+        response.body   = NULL;
     }
 
     response.size = strlen(response.body);
@@ -45,6 +62,7 @@ static char *format_response(Response *response, int buffer_size) {
                                  buffer_size,
                                  default_response,
                                  response->status,
+                                 response->content_type,
                                  response->size,
                                  response->body);
 
