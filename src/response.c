@@ -137,6 +137,26 @@ static void process_post_request(Response *response, Request *request, Settings 
 }
 
 /* ================================
+ * ENCODING SELECTOR
+ * ================================ */
+
+void encoding_selector(Response *response, Request *request) {
+    if (request->count_accept_encodings > 0) {
+        for (int i = 0; i < request->count_accept_encodings; ++i) {
+            if (strncmp(request->accept_encoding[i], "gzip", 5) == 0) {
+                response->content_encoding = "gzip";
+                return;
+            }
+            // else if (strncmp(request->accept_encoding[i], "unknown", 8) == 0) {
+            // response->content_encoding = "unknown";
+            // return;
+            // }
+        }
+    }
+    response->content_encoding = "";
+}
+
+/* ================================
  * PROCESSING METHOD SELECTOR
  * ================================ */
 
@@ -150,11 +170,7 @@ static Response process_request(Request *request, Settings *settings) {
         process_post_request(&response, request, settings);
     }
 
-    if (strncmp(request->accept_encoding, "gzip", 5) == 0) {
-        response.content_encoding = "gzip";
-    } else {
-        response.content_encoding = "";
-    }
+    encoding_selector(&response, request);
 
     return response;
 }

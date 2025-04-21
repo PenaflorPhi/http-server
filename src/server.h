@@ -5,6 +5,9 @@
 #include <netinet/ip.h>
 #include <sys/socket.h>
 
+#define MAX_ENCODINGS     32
+#define MAX_ENCODING_SIZE 32
+
 typedef struct {
     int          file_descriptor;
     unsigned int port;
@@ -27,8 +30,10 @@ typedef struct {
     char *accept;
     char *body;
     char *content_type;
-    char *accept_encoding;
-    int   content_length;
+    char  accept_encoding[MAX_ENCODINGS][MAX_ENCODING_SIZE];
+
+    int count_accept_encodings;
+    int content_length;
 } Request;
 
 typedef struct {

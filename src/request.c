@@ -29,16 +29,18 @@ static void initialize_request(Request *request) {
     request->url      = safe_calloc(MAX_URL_SIZE, sizeof(char));
 
     /* Request header */
-    request->host            = safe_calloc(MAX_HOST_SIZE, sizeof(char));
-    request->user_agent      = safe_calloc(MAX_USER_AGENT_SIZE, sizeof(char));
-    request->connection      = safe_calloc(MAX_CONNECTION_SIZE, sizeof(char));
-    request->accept          = safe_calloc(MAX_ACCEPT_SIZE, sizeof(char));
-    request->accept_encoding = safe_calloc(MAX_ACCEPT_SIZE, sizeof(char));
+    request->host       = safe_calloc(MAX_HOST_SIZE, sizeof(char));
+    request->user_agent = safe_calloc(MAX_USER_AGENT_SIZE, sizeof(char));
+    request->connection = safe_calloc(MAX_CONNECTION_SIZE, sizeof(char));
+    request->accept     = safe_calloc(MAX_ACCEPT_SIZE, sizeof(char));
 
     request->content_type = safe_calloc(MAX_CONTENT_TYPE, sizeof(char));
     request->body         = safe_calloc(MAX_REQUEST_SIZE, sizeof(char));
 
     request->content_length = 0;
+
+    request->count_accept_encodings = 0;
+    memset(request->accept_encoding, 0, sizeof(request->accept_encoding));
 }
 
 static void free_request(Request *request) {
@@ -51,6 +53,46 @@ static void free_request(Request *request) {
     free(request->accept);
     free(request->body);
     free(request->content_type);
+}
+
+// ------------------------------------------------------------------
+// ---------------- Encoding Parsing --------------------------------
+// ------------------------------------------------------------------
+void parse_encoding(char *header_value, Request *request) {
+    // 1) Make a mutable copy of the header *value*
+    char *enc_copy = strdup(header_value);
+    if (!enc_copy) {
+        perror("strdup");
+        return;
+    }
+
+    size_t count = 0;
+
+    // 2) First token: strtok on the copy, delim = ","
+    char *token = strtok(enc_copy, ",");
+    while (token && count < MAX_ENCODINGS) {
+        // 3) Trim leading spaces
+        char *start = token;
+        while (*start == ' ') start++;
+
+        // 4) Trim trailing spaces / newlines
+        char *end = start + strlen(start) - 1;
+        while (end > start && (*end == ' ' || *end == '\r' || *end == '\n')) {
+            *end = '\0';
+            end--;
+        }
+
+        // 5) Copy into your struct’s 2D array
+        strncpy(request->accept_encoding[count], start, MAX_ENCODING_SIZE - 1);
+        request->accept_encoding[count][MAX_ENCODING_SIZE - 1] = '\0';
+
+        count++;
+        token = strtok(NULL, ",");
+    }
+
+    request->count_accept_encodings = (int)count;
+
+    free(enc_copy);
 }
 
 // ------------------------------------------------------------------
@@ -96,30 +138,18 @@ static void parse_header(char *client_request, Request *request) {
                 request->content_length = 0;
             }
         } else if (strcmp(line, "Accept-Encoding") == 0) {
-            strncpy(request->accept_encoding, header_value, MAX_CONNECTION_SIZE - 1);
-            request->accept_encoding[MAX_ACCEPT_SIZE - 1] = '\0';
+            parse_encoding(header_value, request);
         } else {
             strncpy(request->body, header_value, MAX_ACCEPT_SIZE - 1);
             request->body[MAX_CONNECTION_SIZE - 1] = '\0';
         }
     }
 
-    // printf("`Connection`: %s\n", request->connection);
-    // printf("`User-Agent`: %s\n", request->user_agent);
-    // printf("`Accept`: %s\n", request->accept);
-    // printf("`Connection`: %s\n", request->connection);
-
     string_realloc(&request->host);
     string_realloc(&request->user_agent);
     string_realloc(&request->accept);
     string_realloc(&request->connection);
     string_realloc(&request->body);
-    string_realloc(&request->accept_encoding);
-
-    // printf("`Host`: %s\n", request->hos7t);
-    // printf("`User-Agent`: %s\n", request->user_agent);
-    // printf("`Accept`: %s\n", request->accept);
-    // printf("`Connection`: %s\n", request->connection);
 }
 
 static void parse_body(char *client_request, Request *request) {
@@ -146,17 +176,9 @@ static Request parse_request_line(char *client_request) {
     int response_size =
         sscanf(client_request, "%7s %1023s %15s", request.method, request.url, request.protocol);
     if (response_size == 3) {
-        // printf("method: %s\n", request.method);
-        // printf("url: %s\n", request.url);
-        // printf("protocol: %s\n", request.protocol);
-
         string_realloc(&request.method);
         string_realloc(&request.url);
         string_realloc(&request.protocol);
-        //
-        // // printf("method: %s\n", request.method);
-        // // printf("url: %s\n", request.url);
-        // // printf("protocol: %s\n", request.protocol);
     } else {
         free_request(&request);
         perror("Malformed request, could not find one of method, url, protocol");
@@ -202,7 +224,10 @@ Request request_handler(Client *client) {
     printf("`Accept`: %s\n", request.accept);
     printf("`Connection`: %s\n", request.connection);
 
-    printf("`Accept-Encoding`: %s\n", request.accept_encoding);
+    printf("`Accept-Encoding`:\n");
+    for (int i = 0; i < request.count_accept_encodings; ++i) {
+        printf("\t- %s\n", request.accept_encoding[i]);
+    }
 
     printf("`Content-Type`: %s\n", request.content_type);
     printf("`Content-Length`: %d\n", request.content_length);
