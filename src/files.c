@@ -37,3 +37,22 @@ char *read_file(const char *file_path) {
 
     return buffer;
 }
+
+void write_file(const char *file_path, const char *content) {
+    FILE *fp = fopen(file_path, "w");
+    if (!fp) {
+        // Prints e.g. "write_file: fopen: Permission denied"
+        perror("write_file: fopen");
+        return; // ← don’t go on to fprintf or fclose
+    }
+
+    // Try to write; use fputs() for a simple NUL‑terminated string
+    if (fputs(content, fp) == EOF) {
+        perror("write_file: fputs");
+    }
+
+    // Always close, even on write error
+    if (fclose(fp) == EOF) {
+        perror("write_file: fclose");
+    }
+}

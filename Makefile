@@ -8,7 +8,7 @@ BUILD_DIR  = build
 TARGET     = $(BUILD_DIR)/server
 
 # Source and object files
-SRC_FILES  = $(SRC_DIR)/main.c $(SRC_DIR)/server.c $(SRC_DIR)/request.c $(SRC_DIR)/utils.c $(SRC_DIR)/response.c $(SRC_DIR)/read_file.c
+SRC_FILES  = $(SRC_DIR)/main.c $(SRC_DIR)/server.c $(SRC_DIR)/request.c $(SRC_DIR)/utils.c $(SRC_DIR)/response.c $(SRC_DIR)/files.c $(SRC_DIR)/args.c
 OBJ_FILES  = $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
 
 # Default target: build the target executable

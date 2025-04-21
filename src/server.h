@@ -25,6 +25,9 @@ typedef struct {
     char *user_agent;
     char *connection;
     char *accept;
+    char *body;
+    char *content_type;
+    int   content_length;
 } Request;
 
 typedef struct {
@@ -33,6 +36,10 @@ typedef struct {
     char         *body;
     unsigned long size;
 } Response;
+
+typedef struct {
+    char *directory;
+} Settings;
 
 Server create_server(int port, int backlog);
 Client accept_client(Server *server, unsigned int buffer_size);

@@ -9,10 +9,14 @@
 #define MAX_PROTOCOL_SIZE 16
 #define MAX_URL_SIZE      1024
 
+#define MAX_REQUEST_SIZE 4096
+
 #define MAX_HOST_SIZE       256
 #define MAX_USER_AGENT_SIZE 512
 #define MAX_CONNECTION_SIZE 128
 #define MAX_ACCEPT_SIZE     256
+#define MAX_CONTENT_TYPE    128
+#define MAX_BODY_SIZE       4096
 
 // ------------------------------------------------------------------
 // ---------------- Request Struct ----------------------------------
@@ -29,6 +33,9 @@ static void initialize_request(Request *request) {
     request->user_agent = safe_calloc(MAX_USER_AGENT_SIZE, sizeof(char));
     request->connection = safe_calloc(MAX_CONNECTION_SIZE, sizeof(char));
     request->accept     = safe_calloc(MAX_ACCEPT_SIZE, sizeof(char));
+
+    request->content_type = safe_calloc(MAX_CONTENT_TYPE, sizeof(char));
+    request->body         = safe_calloc(MAX_REQUEST_SIZE, sizeof(char));
 }
 
 static void free_request(Request *request) {
@@ -39,6 +46,8 @@ static void free_request(Request *request) {
     free(request->user_agent);
     free(request->connection);
     free(request->accept);
+    free(request->body);
+    free(request->content_type);
 }
 
 // ------------------------------------------------------------------
@@ -72,6 +81,20 @@ static void parse_header(char *client_request, Request *request) {
         } else if (strcmp(line, "Connection") == 0) {
             strncpy(request->connection, header_value, MAX_CONNECTION_SIZE - 1);
             request->connection[MAX_CONNECTION_SIZE - 1] = '\0';
+        } else if (strcmp(line, "Content-Type") == 0) {
+            strncpy(request->content_type, header_value, MAX_CONNECTION_SIZE - 1);
+            request->connection[MAX_CONNECTION_SIZE - 1] = '\0';
+        } else if (strcmp(line, "Content-Length") == 0) {
+            char *endptr;
+            long  val = strtol(header_value, &endptr, 10);
+            if (endptr != header_value && val >= 0 && val <= MAX_ACCEPT_SIZE) {
+                request->content_length = (int)val;
+            } else {
+                request->content_length = 0;
+            }
+        } else {
+            strncpy(request->body, header_value, MAX_ACCEPT_SIZE - 1);
+            request->body[MAX_CONNECTION_SIZE - 1] = '\0';
         }
     }
 
@@ -84,11 +107,29 @@ static void parse_header(char *client_request, Request *request) {
     string_realloc(&request->user_agent);
     string_realloc(&request->accept);
     string_realloc(&request->connection);
+    string_realloc(&request->body);
 
     // printf("`Host`: %s\n", request->host);
     // printf("`User-Agent`: %s\n", request->user_agent);
     // printf("`Accept`: %s\n", request->accept);
     // printf("`Connection`: %s\n", request->connection);
+}
+
+static void parse_body(char *client_request, Request *request) {
+    char *body_start = strstr(client_request, "\r\n\r\n");
+    if (body_start) {
+        body_start += 4; // skip past the "\r\n\r\n"
+    }
+
+    if (body_start) {
+        size_t to_copy = strlen(body_start);
+        if (to_copy > MAX_BODY_SIZE - 1)
+            to_copy = MAX_BODY_SIZE - 1;
+        memcpy(request->body, body_start, to_copy);
+        request->body[to_copy] = '\0';
+    }
+
+    string_realloc(&request->body);
 }
 
 static Request parse_request_line(char *client_request) {
@@ -137,10 +178,12 @@ static void receive_request(Client *client) {
 Request request_handler(Client *client) {
     receive_request(client);
     char *client_request = strdup(client->request);
-    // printf("request:\\n\n%s", client_request);
-    // printf("client_request:\\n\n%s", client_request);
+    puts("--Original's client request---------");
+    printf("%s\n", client_request);
+    puts("------------------------------------");
 
     Request request = parse_request_line(client_request);
+    parse_body(client_request, &request);
     parse_header(client_request, &request);
 
     puts("--- request_handler ----------------");
@@ -152,6 +195,11 @@ Request request_handler(Client *client) {
     printf("`User-Agent`: %s\n", request.user_agent);
     printf("`Accept`: %s\n", request.accept);
     printf("`Connection`: %s\n", request.connection);
+
+    printf("`Content-Type`: %s\n", request.content_type);
+    printf("`Content-Length`: %d\n", request.content_length);
+    printf("`Body`: %s\n", request.body);
+
     puts("------------------------------------");
 
     return request;

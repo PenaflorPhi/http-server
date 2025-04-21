@@ -2,27 +2,35 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "args.h"
 #include "request.h"
 #include "response.h"
 #include "server.h"
 #include "utils.h"
 
-#define PORT            8080
+#define PORT            4221
 #define BACKLOG         16
 #define MAX_BUFFER_SIZE 1024
 
 /* ----------------------------------------------------
  * ------ Threading -----------------------------------
  * ---------------------------------------------------- */
-void *thread_request_handler(void *arg) {
-    Client *client = (Client *)arg;
+
+typedef struct {
+    Client   *client;
+    Settings *settings;
+} ThreadArgs;
+
+void *thread_request_handler(void *args) {
+    ThreadArgs *args_local = (ThreadArgs *)args;
+    Client     *client     = (Client *)args_local->client;
+    Settings   *settings   = (Settings *)args_local->settings;
 
     Request request = request_handler(client);
-    send_response(&request, client);
+    send_response(&request, client, settings);
 
     free(client->request);
     shutdown(client->file_descriptor, SHUT_WR);
@@ -39,20 +47,29 @@ void *thread_request_handler(void *arg) {
  * ------ Main ----------------------------------------
  * ---------------------------------------------------- */
 
-int main() {
+int main(int argc, char **argv) {
+    Settings settings = parse_arguments(argc, argv);
+    printf("directory: %s\n", settings.directory);
+
     Server server = create_server(PORT, BACKLOG);
 
     while (1) {
         pthread_t thread_id;
-        Client    client     = accept_client(&server, MAX_BUFFER_SIZE);
-        Client   *client_ptr = safe_malloc(sizeof(Client));
+        Client    client       = accept_client(&server, MAX_BUFFER_SIZE);
+        Client   *client_ptr   = safe_malloc(sizeof(Client));
+        Settings *settings_ptr = safe_malloc(sizeof(Settings));
 
         if (client.file_descriptor < 0) {
             continue;
         }
 
-        *client_ptr = client;
-        if (pthread_create(&thread_id, NULL, thread_request_handler, (void *)client_ptr) != 0) {
+        ThreadArgs *args = malloc(sizeof(*args));
+        *client_ptr      = client;
+        args->client     = client_ptr;
+        *settings_ptr    = settings;
+        args->settings   = settings_ptr;
+
+        if (pthread_create(&thread_id, NULL, thread_request_handler, (void *)args) != 0) {
             perror("Failed to create thread");
             free(client_ptr);
             continue;
