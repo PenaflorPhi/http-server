@@ -27,14 +27,18 @@ typedef struct {
     char *accept;
     char *body;
     char *content_type;
+    char *accept_encoding;
     int   content_length;
 } Request;
 
 typedef struct {
-    char         *status;
-    char         *content_type;
-    char         *body;
+    char *status;
+    char *content_type;
+    char *content_encoding;
+    char *body;
+
     unsigned long size;
+
 } Response;
 
 typedef struct {

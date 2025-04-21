@@ -9,40 +9,24 @@
 #define MAX_RESPONSE_SIZE 4096
 
 static const char *default_response = "HTTP/1.1 %s\r\n"
-                                      "content-type: %s\r\n"
-                                      "content-length: %zu\r\n"
+                                      "Content-Type: %s\r\n"
+                                      "Content-Encoding: %s\r\n"
+                                      "Content-Length: %zu\r\n"
                                       "\r\n"
                                       "%s";
 
-static void handle_post_file_request(Response *response, Request *request, Settings *settings) {
-    if ((settings->directory) != NULL) {
-        char       *file_path = calloc(1024, sizeof(char));
-        const char *file_name = request->url + 6;
-
-        int written_bytes = snprintf(file_path,           // output buffer
-                                     1024,                // its size
-                                     "%s%s",              // format
-                                     settings->directory, // first %s
-                                     file_name            // second %s
-        );
-
-        if (written_bytes < 0) {
-            perror("Error formating the response.\n");
-            free(file_path);
-        } else if (written_bytes >= 1024) {
-            perror("Response larger than buffer size.\n");
-            free(file_path);
-        }
-
-        write_file(file_path, request->body);
-    }
-
-    response->status       = "201 Created";
-    response->body         = "";
-    response->content_type = "text/plain";
+static void initialize_response(Response *response) {
+    response->body             = safe_calloc(MAX_RESPONSE_SIZE, sizeof(char));
+    response->status           = safe_calloc(32, sizeof(char));
+    response->content_type     = safe_calloc(32, sizeof(char));
+    response->content_encoding = safe_calloc(32, sizeof(char));
 }
 
-static void handle_get_file_request(Response *response, Request *request, Settings *settings) {
+/* ======================
+ * GET REQUEST
+ * ====================== */
+
+static void handle_read_file(Response *response, Request *request, Settings *settings) {
     if ((settings->directory) != NULL) {
         char       *file_path      = calloc(1024, sizeof(char));
         const char *requested_file = request->url + 6;
@@ -78,12 +62,6 @@ static void handle_get_file_request(Response *response, Request *request, Settin
     };
 }
 
-static void initialize_response(Response *response) {
-    response->body         = safe_calloc(MAX_RESPONSE_SIZE, sizeof(char));
-    response->status       = safe_calloc(32, sizeof(char));
-    response->content_type = safe_calloc(32, sizeof(char));
-}
-
 static void process_get_request(Response *response, Request *request, Settings *settings) {
     if (strcmp(request->url, "/") == 0) {
         response->status       = "200 OK";
@@ -107,17 +85,49 @@ static void process_get_request(Response *response, Request *request, Settings *
 
         response->content_type = "text/plain";
     } else if (strncmp(request->url, "/files/", 6) == 0) {
-        handle_get_file_request(response, request, settings);
+        handle_read_file(response, request, settings);
     } else {
         response->status = "404 Not Found";
     }
 
     response->size = strlen(response->body);
+}
+
+/* ======================
+ * POST REQUEST
+ * ====================== */
+
+static void handle_write_file(Response *response, Request *request, Settings *settings) {
+    if ((settings->directory) != NULL) {
+        char       *file_path = calloc(1024, sizeof(char));
+        const char *file_name = request->url + 6;
+
+        int written_bytes = snprintf(file_path,           // output buffer
+                                     1024,                // its size
+                                     "%s%s",              // format
+                                     settings->directory, // first %s
+                                     file_name            // second %s
+        );
+
+        if (written_bytes < 0) {
+            perror("Error formating the response.\n");
+            free(file_path);
+        } else if (written_bytes >= 1024) {
+            perror("Response larger than buffer size.\n");
+            free(file_path);
+        }
+
+        write_file(file_path, request->body);
+    }
+
+    response->status       = "201 Created";
+    response->body         = "";
+    response->content_type = "text/plain";
 }
 
 static void process_post_request(Response *response, Request *request, Settings *settings) {
     if (strncmp(request->url, "/files/", 6) == 0) {
-        handle_post_file_request(response, request, settings);
+        handle_write_file(response, request, settings);
 
     } else {
         response->status = "404 Not Found";
@@ -125,6 +135,10 @@ static void process_post_request(Response *response, Request *request, Settings 
 
     response->size = strlen(response->body);
 }
+
+/* ================================
+ * PROCESSING METHOD SELECTOR
+ * ================================ */
 
 static Response process_request(Request *request, Settings *settings) {
     Response response;
@@ -135,6 +149,13 @@ static Response process_request(Request *request, Settings *settings) {
     } else if (strcmp(request->method, "POST") == 0) {
         process_post_request(&response, request, settings);
     }
+
+    if (strncmp(request->accept_encoding, "gzip", 5) == 0) {
+        response.content_encoding = "gzip";
+    } else {
+        response.content_encoding = "";
+    }
+
     return response;
 }
 
@@ -145,6 +166,7 @@ static char *format_response(Response *response, int buffer_size) {
                                  default_response,
                                  response->status,
                                  response->content_type,
+                                 response->content_encoding,
                                  response->size,
                                  response->body);
 

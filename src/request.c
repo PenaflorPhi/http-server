@@ -29,13 +29,16 @@ static void initialize_request(Request *request) {
     request->url      = safe_calloc(MAX_URL_SIZE, sizeof(char));
 
     /* Request header */
-    request->host       = safe_calloc(MAX_HOST_SIZE, sizeof(char));
-    request->user_agent = safe_calloc(MAX_USER_AGENT_SIZE, sizeof(char));
-    request->connection = safe_calloc(MAX_CONNECTION_SIZE, sizeof(char));
-    request->accept     = safe_calloc(MAX_ACCEPT_SIZE, sizeof(char));
+    request->host            = safe_calloc(MAX_HOST_SIZE, sizeof(char));
+    request->user_agent      = safe_calloc(MAX_USER_AGENT_SIZE, sizeof(char));
+    request->connection      = safe_calloc(MAX_CONNECTION_SIZE, sizeof(char));
+    request->accept          = safe_calloc(MAX_ACCEPT_SIZE, sizeof(char));
+    request->accept_encoding = safe_calloc(MAX_ACCEPT_SIZE, sizeof(char));
 
     request->content_type = safe_calloc(MAX_CONTENT_TYPE, sizeof(char));
     request->body         = safe_calloc(MAX_REQUEST_SIZE, sizeof(char));
+
+    request->content_length = 0;
 }
 
 static void free_request(Request *request) {
@@ -83,7 +86,7 @@ static void parse_header(char *client_request, Request *request) {
             request->connection[MAX_CONNECTION_SIZE - 1] = '\0';
         } else if (strcmp(line, "Content-Type") == 0) {
             strncpy(request->content_type, header_value, MAX_CONNECTION_SIZE - 1);
-            request->connection[MAX_CONNECTION_SIZE - 1] = '\0';
+            request->content_type[MAX_CONTENT_TYPE - 1] = '\0';
         } else if (strcmp(line, "Content-Length") == 0) {
             char *endptr;
             long  val = strtol(header_value, &endptr, 10);
@@ -92,6 +95,9 @@ static void parse_header(char *client_request, Request *request) {
             } else {
                 request->content_length = 0;
             }
+        } else if (strcmp(line, "Accept-Encoding") == 0) {
+            strncpy(request->accept_encoding, header_value, MAX_CONNECTION_SIZE - 1);
+            request->accept_encoding[MAX_ACCEPT_SIZE - 1] = '\0';
         } else {
             strncpy(request->body, header_value, MAX_ACCEPT_SIZE - 1);
             request->body[MAX_CONNECTION_SIZE - 1] = '\0';
@@ -108,8 +114,9 @@ static void parse_header(char *client_request, Request *request) {
     string_realloc(&request->accept);
     string_realloc(&request->connection);
     string_realloc(&request->body);
+    string_realloc(&request->accept_encoding);
 
-    // printf("`Host`: %s\n", request->host);
+    // printf("`Host`: %s\n", request->hos7t);
     // printf("`User-Agent`: %s\n", request->user_agent);
     // printf("`Accept`: %s\n", request->accept);
     // printf("`Connection`: %s\n", request->connection);
@@ -133,7 +140,6 @@ static void parse_body(char *client_request, Request *request) {
 }
 
 static Request parse_request_line(char *client_request) {
-    printf("parsing request\n");
     Request request;
     initialize_request(&request);
 
@@ -196,10 +202,11 @@ Request request_handler(Client *client) {
     printf("`Accept`: %s\n", request.accept);
     printf("`Connection`: %s\n", request.connection);
 
+    printf("`Accept-Encoding`: %s\n", request.accept_encoding);
+
     printf("`Content-Type`: %s\n", request.content_type);
     printf("`Content-Length`: %d\n", request.content_length);
     printf("`Body`: %s\n", request.body);
-
     puts("------------------------------------");
 
     return request;
